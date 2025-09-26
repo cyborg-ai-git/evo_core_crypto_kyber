@@ -1,0 +1,93 @@
+#=======================================================================================================================
+# CyborgAI
+# Apache-2.0
+# https://github.com/cyborg-ai-git
+#=======================================================================================================================
+[package]
+name = "evo_core_crypto_kyber"
+version = "2025.9.260937"
+authors = ["Bas Westerbaan <bas@westerbaan.name>", "cyborg ai"]
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/cyborg-ai-git/evo_core_crypto_kyber"
+documentation = "https://github.com/cyborg-ai-git/evo_core_crypto_kyber"
+categories = ["algorithms", "cryptography", "wasm", "no-std"]
+description = "Fork of pqc_kyber with some safety fixes"
+keywords = ["kyber", "kem", "key-exchange", "kex", "post-quantum"]
+readme = "README.md"
+#=======================================================================================================================
+[dependencies]
+rand_core = { version = "0.6.4",  default-features = false }
+wasm-bindgen = { version = "0.2.84", optional = true }
+getrandom = {version = "0.2.9", features = ["js"], optional = true }
+zeroize = { version = "1.6.0", features = ["derive"], optional = true }
+criterion = { version = "0.7.0", features = ["html_reports"], optional = true }
+log = "0.4.28"
+#=======================================================================================================================
+[dependencies.rand]
+version = "0.8.5"
+default-features = false
+features = ["getrandom"]
+optional = true
+#-----------------------------------------------------------------------------------------------------------------------
+[dependencies.evo_framework]
+# <https://crates.io/>
+version = "*"
+# <https://github.com/>
+git = "https://github.com/cyborg-ai-git/evo_framework.git"
+#tag = "v*"
+#=======================================================================================================================
+[dev-dependencies]
+rand = "0.8.5"
+#-----------------------------------------------------------------------------------------------------------------------
+[dev-dependencies.evo_core_log]
+# <https://crates.io/>
+version = "*"
+# <https://github.com/>
+git = "https://github.com/cyborg-ai-git/evo_core_log.git"
+#tag = "v"
+#-----------------------------------------------------------------------------------------------------------------------
+[dev-dependencies.evo_core_id]
+# <https://crates.io/>
+version = "*"
+# <https://github.com/>
+git = "https://github.com/cyborg-ai-git/evo_core_id.git"
+#tag = "v"
+#=======================================================================================================================
+[build-dependencies]
+#=======================================================================================================================
+[lib]
+crate-type = ["cdylib", "rlib"]
+#=======================================================================================================================
+[[bench]]
+name = "bench_kyber"
+harness = false
+#=======================================================================================================================
+[features]
+### Security Levels ###
+# Defaults to "kyber1024" if none selected
+# Will throw a compile-time error if more than one level is chosen
+default = ["kyber1024"]
+kyber512 = []
+kyber768 = [] 
+kyber1024 = []
+#=======================================================================================================================
+# For compiling to wasm targets 
+wasm = ["wasm-bindgen", "getrandom", "rand"]
+#=======================================================================================================================
+# Enable std library support
+std = []
+#=======================================================================================================================
+# For benchmarking
+benchmarking = ["criterion"]
+#=======================================================================================================================
+# Prevents leak sanitiser failing in tests
+[profile.test]
+opt-level = 3
+#=======================================================================================================================
+[profile.test.package."*"]
+opt-level = 0
+#=======================================================================================================================
+[profile.test.build-override]
+opt-level = 0
+#=======================================================================================================================
