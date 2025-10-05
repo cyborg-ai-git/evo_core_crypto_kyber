@@ -66,7 +66,8 @@ fn ake_valid() {
   let bob_keys = keypair(&mut rng);
   let id_alice = UId::id_hex("9fbbbd21c05a39e52726048832c5af044f559c4723523dd869a481bb8781b525");
   let client_init = alice.do_client_send(&bob_keys.public, id_alice, &mut rng);
-  let (_client_id, server_send, _temp_key) = bob.on_server_receive(client_init, &alice_keys.public, &bob_keys.secret, &mut rng).unwrap();
+  let (_client_id, _temp_key) = bob.on_server_receive(&client_init, &bob_keys.secret).unwrap();
+  let server_send = bob.do_server_send(&client_init, &alice_keys.public, &bob_keys.secret, &mut rng).unwrap();
   let _client_confirm = alice.do_client_confirm(server_send, &alice_keys.secret).unwrap();
   assert_eq!(alice.shared_secret, bob.shared_secret);
 }
@@ -81,7 +82,9 @@ fn ake_invalid_client_init_ciphertext() {
   let id_alice = UId::id_hex("9fbbbd21c05a39e52726048832c5af044f559c4723523dd869a481bb8781b525");
   let mut client_init = alice.do_client_send(&bob_keys.public, id_alice, &mut rng);
   client_init[KYBER_PUBLICKEYBYTES..][..4].copy_from_slice(&[255u8;4]);
-  assert!(!bob.on_server_receive(client_init, &alice_keys.public, &bob_keys.secret, &mut rng).is_err());
+  assert!(!bob.on_server_receive(&client_init, &bob_keys.secret).is_err());
+  let server_send = bob.do_server_send(&client_init, &alice_keys.public, &bob_keys.secret, &mut rng).unwrap();
+  alice.do_client_confirm(server_send, &alice_keys.secret).unwrap();
   assert_ne!(alice.shared_secret, bob.shared_secret);
 }
 
@@ -95,7 +98,8 @@ fn ake_invalid_client_init_publickey() {
   let id_alice = UId::id_hex("9fbbbd21c05a39e52726048832c5af044f559c4723523dd869a481bb8781b525");
   let mut client_init = alice.do_client_send(&bob_keys.public, id_alice, &mut rng);
   client_init[..4].copy_from_slice(&[255u8;4]);
-  let (_client_id, server_send, _temp_key) = bob.on_server_receive(client_init, &alice_keys.public, &bob_keys.secret, &mut rng).unwrap();
+  let (_client_id, _temp_key) = bob.on_server_receive(&client_init, &bob_keys.secret).unwrap();
+  let server_send = bob.do_server_send(&client_init, &alice_keys.public, &bob_keys.secret, &mut rng).unwrap();
   assert!(!alice.do_client_confirm(server_send, &alice_keys.secret).is_err());
   assert_ne!(alice.shared_secret, bob.shared_secret);
 }
@@ -109,7 +113,8 @@ fn ake_invalid_server_send_first_ciphertext() {
   let bob_keys = keypair(&mut rng);
   let id_alice = UId::id_hex("9fbbbd21c05a39e52726048832c5af044f559c4723523dd869a481bb8781b525");
   let client_init = alice.do_client_send(&bob_keys.public, id_alice, &mut rng);
-  let (_client_id, mut server_send, _temp_key) = bob.on_server_receive(client_init, &alice_keys.public, &bob_keys.secret, &mut rng).unwrap();
+  let (_client_id, _temp_key) = bob.on_server_receive(&client_init, &bob_keys.secret).unwrap();
+  let mut server_send = bob.do_server_send(&client_init, &alice_keys.public, &bob_keys.secret, &mut rng).unwrap();
   server_send[..4].copy_from_slice(&[255u8;4]);
   assert!(!alice.do_client_confirm(server_send, &alice_keys.secret).is_err());
   assert_ne!(alice.shared_secret, bob.shared_secret);
@@ -124,7 +129,8 @@ fn ake_invalid_server_send_second_ciphertext() {
   let bob_keys = keypair(&mut rng);
   let id_alice = UId::id_hex("9fbbbd21c05a39e52726048832c5af044f559c4723523dd869a481bb8781b525");
   let client_init = alice.do_client_send(&bob_keys.public, id_alice, &mut rng);
-  let (_client_id, mut server_send, _temp_key) = bob.on_server_receive(client_init, &alice_keys.public, &bob_keys.secret, &mut rng).unwrap();
+  let (_client_id, _temp_key) = bob.on_server_receive(&client_init, &bob_keys.secret).unwrap();
+  let mut server_send = bob.do_server_send(&client_init, &alice_keys.public, &bob_keys.secret, &mut rng).unwrap();
   server_send[KYBER_CIPHERTEXTBYTES..][..4].copy_from_slice(&[255u8;4]);
   // assert!(alice.do_client_confirm(server_send, &alice_keys.secret).is_err());
 }

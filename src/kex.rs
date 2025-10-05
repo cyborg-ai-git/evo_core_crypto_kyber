@@ -182,7 +182,8 @@ impl Uake {
 ///
 /// let id_alice = UId::id();
 /// let client_init = alice.do_client_send(&bob_keys.public, id_alice, &mut rng);
-/// let (client_id, server_send, temp_key) = bob.on_server_receive(client_init, &alice_keys.public, &bob_keys.secret, &mut rng)?;
+/// let (client_id, temp_key) = bob.on_server_receive(&client_init, &bob_keys.secret)?;
+/// let server_send = bob.do_server_send(&client_init, &alice_keys.public, &bob_keys.secret, &mut rng)?;
 /// let client_confirm = alice.do_client_confirm(server_send, &alice_keys.secret);
 ///
 /// assert_eq!(alice.shared_secret, bob.shared_secret);
@@ -268,27 +269,39 @@ impl Ake {
     /// let bob_keys = keypair(&mut rng);
     /// let id_alice = UId::id();
     /// let client_init = alice.do_client_send(&bob_keys.public, id_alice, &mut rng);
-    /// let (client_id, server_send, temp_key) = bob.on_server_receive(client_init, &alice_keys.public, &bob_keys.secret, &mut rng)?;
+    /// let (client_id, temp_key) = bob.on_server_receive(&client_init, &bob_keys.secret)?;
     /// # Ok(()) }
-    pub fn on_server_receive<R>(
+    pub fn on_server_receive(
         &mut self,
-        ake_send_a: AkeSendInit,
-        pub_key: &PublicKey,
-        secret_key: &SecretKey,
+        ake_send_a: &AkeSendInit,
+        sk_server: &SecretKey,
+    ) -> Result<(TypeID, Vec<u8>), KyberError>
+    {
+        // Extract client ID and temp key from the message using server's secret key
+        let (client_id, alice_temp_key) = extract_client_info_from_message(ake_send_a, sk_server)?;
+        Ok((client_id, alice_temp_key.to_vec()))
+    }
+
+    pub fn do_server_send<R>(
+        &mut self,
+        ake_send_a: &AkeSendInit,
+        pk_client: &PublicKey,
+        sk_server: &SecretKey,
         rng: &mut R,
-    ) -> Result<(TypeID, AkeSendResponse, Vec<u8>), KyberError>
+    ) -> Result<AkeSendResponse, KyberError>
     where
         R: CryptoRng + RngCore,
     {
-        let (client_id, alice_temp_key) = ake_shared_b_with_id(
+        // Use the existing ake_shared_b_with_id function to compute shared secret and generate response
+        let (_client_id, _alice_temp_key) = ake_shared_b_with_id(
             &mut self.send_b,
             &mut self.shared_secret,
-            &ake_send_a,
-            secret_key,
-            pub_key,
+            ake_send_a,
+            sk_server,
+            pk_client,
             rng,
         )?;
-        Ok((client_id, self.send_b, alice_temp_key.to_vec()))
+        Ok(self.send_b)
     }
 
     /// Decapsulates and authenticates the shared secret from the output of
@@ -304,7 +317,8 @@ impl Ake {
     /// # let bob_keys = keypair(&mut rng);
     /// # let id_alice = UId::id();
     /// # let client_init = alice.do_client_send(&bob_keys.public, id_alice, &mut rng);
-    /// let (client_id, server_send, temp_key) = bob.on_server_receive(client_init, &alice_keys.public, &bob_keys.secret, &mut rng)?;
+    /// let (client_id, temp_key) = bob.on_server_receive(&client_init, &bob_keys.secret)?;
+    /// let server_send = bob.do_server_send(&client_init, &alice_keys.public, &bob_keys.secret, &mut rng)?;
     /// let client_confirm = alice.do_client_confirm(server_send, &alice_keys.secret);
     /// assert_eq!(alice.shared_secret, bob.shared_secret);
     /// # Ok(()) }
@@ -537,6 +551,46 @@ where
     }
     
     kdf(k, &buf, 3 * KYBER_SYMBYTES);
+    Ok((client_id, alice_temp_key))
+}
+//--------------------------------------------------------------------------------------------------
+// Extract client ID and temp key from AKE message using server's secret key
+fn extract_client_info_from_message(recv: &[u8], skb: &[u8]) -> Result<([u8; 32], TempKey), KyberError> {
+    let mut alice_temp_key = [0u8; KYBER_SSBYTES];
+    
+    // Extract Alice's temp_key by decrypting the ciphertext portion of her message
+    // The ciphertext starts at KYBER_PUBLICKEYBYTES offset in recv
+    crypto_kem_dec(
+        &mut alice_temp_key,
+        &recv[KYBER_PUBLICKEYBYTES..KYBER_PUBLICKEYBYTES + KYBER_CIPHERTEXTBYTES],
+        skb,
+    );
+    
+    // Extract the encrypted payload from the additional space
+    let mut payload = [0u8; 64];
+    if recv.len() >= KYBER_PUBLICKEYBYTES + KYBER_CIPHERTEXTBYTES + 64 {
+        payload.copy_from_slice(
+            &recv[KYBER_PUBLICKEYBYTES + KYBER_CIPHERTEXTBYTES..KYBER_PUBLICKEYBYTES + KYBER_CIPHERTEXTBYTES + 64]
+        );
+    }
+    
+    // Decrypt the payload using XOR with Alice's temp_key
+    for i in 0..64 {
+        payload[i] ^= alice_temp_key[i % 32];
+    }
+    
+    // Extract temp_key and client_id from decrypted payload
+    let mut extracted_temp_key = [0u8; 32];
+    let mut client_id = [0u8; 32];
+    extracted_temp_key.copy_from_slice(&payload[..32]);
+    client_id.copy_from_slice(&payload[32..]);
+    
+    // Verify that the extracted temp_key matches what we decrypted
+    // (This is a consistency check)
+    if extracted_temp_key != alice_temp_key {
+        return Err(KyberError::InvalidInput);
+    }
+    
     Ok((client_id, alice_temp_key))
 }
 //==================================================================================================

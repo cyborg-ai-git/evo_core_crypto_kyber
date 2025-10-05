@@ -93,9 +93,8 @@
 //! let id_alice = UId::id();
 //! let client_init = alice.do_client_send(&bob_keys.public, id_alice, &mut rng);
 //!
-//! let (client_id, server_send, temp_key) = bob.on_server_receive(
-//!   client_init, &alice_keys.public, &bob_keys.secret, &mut rng
-//! )?;
+//! let (client_id, temp_key) = bob.on_server_receive(&client_init, &bob_keys.secret)?;
+//! let server_send = bob.do_server_send(&client_init, &alice_keys.public, &bob_keys.secret, &mut rng)?;
 //!
 //! alice.do_client_confirm(server_send, &alice_keys.secret)?;
 //!

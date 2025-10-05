@@ -30,8 +30,11 @@ fn main() -> Result<(), KyberError> {
     // encapsulated shared secret back
     let mut rng_bob = rand::thread_rng();
 
-    let (id_client, server_send, temp_sk_bob) = bob.on_server_receive(
-        client_send,
+    let (id_client, temp_sk_bob) = bob.on_server_receive(&client_send, &bob_keys.secret)?;
+
+    // Generate server response using the new do_server_send function
+    let server_send = bob.do_server_send(
+        &client_send,
         &alice_keys.public,
         &bob_keys.secret,
         &mut rng_bob,
