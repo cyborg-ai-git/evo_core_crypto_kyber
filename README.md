@@ -50,9 +50,11 @@ This library:
 * Is no_std compatible and needs no allocator, suitable for embedded devices. 
 * Reference files contain no unsafe code and are written in pure rust.
 * Compiles to WASM using wasm-bindgen and has a ready-to-use binary published on NPM.
+* Features optimized AKE protocol with split server functions for flexible client identity management.
+* Memory-efficient design using zero-copy operations where possible.
 
 
-See the [**features**](#features) section for different options regarding security levels and modes of operation. The default security setting is kyber768.
+See the [**features**](#features) section for different options regarding security levels and modes of operation. The default security setting is kyber1024.
 
 It is recommended to use Kyber in a hybrid system alongside a traditional key exchange algorithm such as X25519. 
 
@@ -67,13 +69,21 @@ Please also read the [**security considerations**](#security-considerations) bef
 ## Installation
 
 ```shell
-cargo add evo_core_crypto_kyber
+cargo add --git https://github.com/cyborg-ai-git/evo_core_crypto_kyber
+```
+
+Or add to your `Cargo.toml`:
+
+```toml
+[dependencies]
+evo_core_crypto_kyber = { git = "https://github.com/cyborg-ai-git/evo_core_crypto_kyber" }
 ```
 
 ## Usage 
 
 ```rust
 use evo_core_crypto_kyber::*;
+use evo_core_id::UId; // For AKE with client identification
 ```
 
 ---
@@ -124,25 +134,75 @@ assert_eq!(alice.shared_secret, bob.shared_secret);
 ---
 
 ### Mutually Authenticated Key Exchange
-Follows the same workflow except Bob requires Alice's public keys:
+
+The AKE protocol supports a split server workflow for scenarios where you need to extract the client ID before looking up the client's public key from an external source:
 
 ```rust
+use evo_core_id::UId;
+
 let mut alice = Ake::new();
 let mut bob = Ake::new();
 
 let alice_keys = keypair(&mut rng);
 let bob_keys = keypair(&mut rng);
+let id_alice = UId::id();
 
-let client_init = alice.client_init(&bob_keys.public, &mut rng);
+// Alice initiates with her ID embedded in the message
+let client_send = alice.do_client_send(&bob_keys.public, id_alice, &mut rng);
 
-let server_response = bob.server_receive(
-  client_init, &alice_keys.public, &bob_keys.secret, &mut rng
-)?;
+// Bob extracts client ID and temp key (without needing Alice's public key yet)
+let (id_client, temp_key) = bob.on_server_receive(&client_send, &bob_keys.secret)?;
 
-alice.client_confirm(server_response, &alice_keys.secret)?;
+// Now you can use id_client to look up alice_keys.public from your database/registry
+assert_eq!(id_alice, id_client);
+
+// Bob completes the key exchange with Alice's public key
+let server_send = bob.do_server_send(&client_send, &alice_keys.public, &bob_keys.secret, &mut rng)?;
+
+// Alice confirms and derives the shared secret
+alice.do_client_confirm(server_send, &alice_keys.secret)?;
 
 assert_eq!(alice.shared_secret, bob.shared_secret);
 ```
+
+#### Performance Optimizations
+
+The AKE implementation includes several optimizations:
+
+- **Memory Efficient**: Functions use references instead of copying 3200-byte messages, saving ~6.4KB per operation
+- **Split Server Functions**: Allows extracting client identity before public key lookup
+- **Zero-Copy Design**: Minimizes memory allocations during key exchange
+
+#### AKE Performance Benchmarks
+
+| Function | Average Time |
+|----------|-------------|
+| Keypair Generation | ~90 µs |
+| Client Send | ~253 µs |
+| Server Receive | ~130 µs |
+| Server Send | ~660 µs |
+| Client Confirm | ~645 µs |
+| **Full Round Trip** | **~1.46 ms** |
+
+---
+
+## Examples
+
+The library includes comprehensive examples demonstrating different use cases:
+
+```bash
+# Run the AKE example with client identification
+cargo run --example example_ake
+
+# Run the basic KEM example  
+cargo run --example example_kem
+```
+
+The AKE example demonstrates the complete workflow including:
+- Client identity embedding and extraction
+- Split server-side processing
+- Memory-efficient message handling
+- Shared secret derivation and verification
 
 ---
 
@@ -157,11 +217,11 @@ The KyberError enum has two variants:
 
 ## Features
 
-If no security level is specified then kyber768 is used by default as recommended by the authors. It is roughly equivalent to AES-192.  Apart from the two security levels, all other features can be combined as needed. For example:
+If no security level is specified then kyber1024 is used by default, providing the highest security level roughly equivalent to AES-256. All features can be combined as needed. For example:
 
 ```toml
 [dependencies]
-safe_pqc_kyber = {version = "0.6.0", features = ["kyber512"]}
+evo_core_crypto_kyber = { git = "https://github.com/cyborg-ai-git/evo_core_crypto_kyber", features = ["kyber512"] }
 ```
 
 
@@ -169,7 +229,8 @@ safe_pqc_kyber = {version = "0.6.0", features = ["kyber512"]}
 |-----------|------------|
 | std | Enable the standard library |
 | kyber512  | Enables kyber512 mode, with a security level roughly equivalent to AES-128.|
-| kyber1024 | Enables kyber1024 mode, with a security level roughly equivalent to AES-256.  A compile-time error is raised if more than one security level is specified.|
+| kyber768  | Enables kyber768 mode, with a security level roughly equivalent to AES-192.|
+| kyber1024 | Enables kyber1024 mode, with a security level roughly equivalent to AES-256. **This is the default security level.** A compile-time error is raised if more than one security level is specified.|
 | wasm | For compiling to WASM targets|
 | zeroize | This will zero out the key exchange structs on drop using the [zeroize](https://docs.rs/zeroize/latest/zeroize/) crate |
 | benchmarking |  Enables the criterion benchmarking suite |
@@ -185,7 +246,7 @@ The test vector files are quite large, you will need to build them yourself from
 There's a helper script to do this [here](./tests/KAT/build_kats.sh). 
 
 ```bash
-# This example runs the basic tests for kyber768
+# This example runs the basic tests for kyber1024 (default)
 cargo test
 ```
 
@@ -198,6 +259,19 @@ See the [testing readme](./tests/readme.md) for more comprehensive info.
 Uses criterion for benchmarking. If you have GNUPlot installed it will generate statistical graphs in `./target/criterion/`.
 
 You will need to enable the `benchmarking` feature.
+
+```bash
+# Run all benchmarks
+cargo bench --features benchmarking
+
+# Run specific benchmark suites
+cargo bench --bench bench_kyber --features benchmarking      # Core KEM operations
+cargo bench --bench bench_kyber_ake --features benchmarking  # AKE protocol functions
+```
+
+Available benchmark suites:
+- **bench_kyber**: Core Kyber KEM operations (keypair, encapsulate, decapsulate)
+- **bench_kyber_ake**: AKE protocol functions (client_send, server_receive, server_send, client_confirm, full round trip)
 
 See the [benchmarking readme](./benches/readme.md) for information on correct usage.
 
