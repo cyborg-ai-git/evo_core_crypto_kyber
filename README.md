@@ -173,18 +173,6 @@ The AKE implementation includes several optimizations:
 - **Split Server Functions**: Allows extracting client identity before public key lookup
 - **Zero-Copy Design**: Minimizes memory allocations during key exchange
 
-#### AKE Performance Benchmarks
-
-| Function | Average Time |
-|----------|-------------|
-| Keypair Generation | ~90 µs |
-| Client Send | ~253 µs |
-| Server Receive | ~130 µs |
-| Server Send | ~660 µs |
-| Client Confirm | ~645 µs |
-| **Full Round Trip** | **~1.46 ms** |
-
----
 
 ## Examples
 
