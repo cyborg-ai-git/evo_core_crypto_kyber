@@ -1,17 +1,17 @@
 /// The security level of Kyber
 /// 
-/// Defaults to 3 (kyber768), will be 2 or 4 respectively when
-/// kyber512 or kyber1024 are selected with feature flags.
+/// Defaults to 4 (kyber1024), will be 2 or 3 respectively when
+/// kyber512 or kyber768 are selected with feature flags.
 /// 
 /// * Kyber-512 aims at security roughly equivalent to AES-128
 /// * Kyber-768 aims at security roughly equivalent to AES-192
 /// * Kyber-1024 aims at security roughly equivalent to AES-256
 pub const KYBER_K: usize = if cfg!(feature = "kyber512") {
     2
-} else if cfg!(feature = "kyber1024") {
-    4
-} else {
+} else if cfg!(feature = "kyber768") {
     3
+} else {
+    4  // Default to kyber1024
 };
 
 pub(crate) const KYBER_N: usize = 256;
