@@ -1,0 +1,9 @@
+*.assets*
+*.so
+*.onnx
+*.ort
+*.idea
+.kiro
+.vscode
+target
+Cargo.lock
