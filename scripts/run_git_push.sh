@@ -6,7 +6,7 @@
 #===================================================================================================
 PACKAGE_NAME="$(basename "$(pwd)")"
 DIRECTORY_BASE=$(dirname "$(realpath "$0")")
-clear
+#clear
 
 echo "Usage: $0 'commit_message' [release]"
 echo "  - Without 'release': commits to current branch"
