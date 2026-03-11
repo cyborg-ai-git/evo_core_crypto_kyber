@@ -4,8 +4,9 @@
 # CC BY-NC-ND 4.0 Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International
 # github: https://github.com/cyborg-ai-git
 #===================================================================================================
-PACKAGE_NAME="$(basename "$(pwd)")"
+
 DIRECTORY_BASE=$(dirname "$(realpath "$0")")
+PACKAGE_NAME="$(basename "$DIRECTORY_BASE")"
 #clear
 
 echo "Usage: $0 'commit_message' [release]"
